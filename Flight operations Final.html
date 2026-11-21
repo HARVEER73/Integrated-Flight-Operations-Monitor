@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Flight operations</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{--bg:#fafaf8;--panel:#fff;--ink:#1a1a1a;--mute:#8a8a85;--line:#e8e8e3;--ok:#2f7d5b;--warn:#b7791f;--bad:#c2410c;--sel:#f2f2ee;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121211;--panel:#1a1a19;--ink:#ecece8;--mute:#8d8d87;--line:#2a2a28;--ok:#5fbf92;--warn:#e0a94a;--bad:#f08a5d;--sel:#222220;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121211;--panel:#1a1a19;--ink:#ecece8;--mute:#8d8d87;--line:#2a2a28;--ok:#5fbf92;--warn:#e0a94a;--bad:#f08a5d;--sel:#222220;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Inter",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:1180px;margin:0 auto;padding:32px 20px 56px}
+header{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:28px}
+h1{font-size:20px;font-weight:600;margin:0;letter-spacing:-.01em}
+h2{font-size:13px;font-weight:600;margin:0 0 12px}
+.mute{color:var(--mute)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:24px}
+.kpi{background:var(--panel);padding:16px 18px}
+.kpi b{display:block;font-size:28px;font-weight:500;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+input,button{font:inherit;color:inherit}
+input{flex:1;min-width:140px;border:1px solid var(--line);background:transparent;border-radius:6px;padding:6px 10px}
+button{border:1px solid var(--line);background:transparent;border-radius:6px;padding:5px 10px;cursor:pointer}
+button:hover{background:var(--sel)}
+button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;white-space:nowrap}
+th{text-align:left;font-weight:400;color:var(--mute);padding:6px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line)}
+tbody tr{cursor:pointer}
+tbody tr:hover,tbody tr.sel{background:var(--sel)}
+tbody tr:last-child td{border-bottom:0}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;background:var(--mute)}
+.s-ontime .dot,.s-departed .dot{background:var(--ok)}.s-boarding .dot{background:var(--ink)}.s-delayed .dot{background:var(--warn)}.s-cancelled .dot{background:var(--bad)}
+.s-cancelled td:not(:last-child){text-decoration:line-through;color:var(--mute)}
+.flag{color:var(--bad);font-weight:600}
+dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:12px 0}
+dt{color:var(--mute)}dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.cf{border-left:2px solid var(--bad);padding:2px 0 2px 10px;margin:0 0 12px}
+.cf:last-child{margin-bottom:0}
+.ok{color:var(--ok)}
+section.wide{margin-top:24px}
+.tl{min-width:640px}
+.row{display:grid;grid-template-columns:44px 1fr;align-items:center;height:30px;border-top:1px solid var(--line)}
+.lane{position:relative;height:100%}
+.bar{position:absolute;top:6px;height:18px;border-radius:4px;background:var(--ink);color:var(--bg);font-size:11px;line-height:18px;padding:0 5px;overflow:hidden;white-space:nowrap;opacity:.85;cursor:pointer}
+.bar.arr{background:transparent;color:var(--ink);border:1px solid var(--ink)}
+.bar.bad{background:var(--bad);border-color:var(--bad);color:#fff;opacity:1}
+.bar.x{opacity:.3}
+.axis{display:grid;grid-template-columns:44px 1fr;color:var(--mute);font-size:11px}
+.axis div{position:relative;height:16px}.axis span{position:absolute;transform:translateX(-50%)}
+.now{position:absolute;top:0;bottom:0;width:1px;background:var(--warn);z-index:2}
+@media (max-width:860px){.grid{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
+:root{--bg:#f3f5fb;--panel:#fff;--ink:#0f172a;--mute:#6b7694;--line:#e7eaf4;--sel:#f1f3fd;--acc:#5b5bf0;--acc2:#8b7cf6;--ok:#0f9d6e;--warn:#d9822b;--bad:#e5484d;--sh:0 1px 2px rgba(30,41,90,.05),0 8px 24px rgba(30,41,90,.06)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0c1022;--panel:#141a36;--ink:#e9ecff;--mute:#8b94b8;--line:#232b4f;--sel:#1b2347;--acc:#8d8dff;--acc2:#a99bff;--ok:#3ecf9a;--warn:#f0a35a;--bad:#ff7a7f;--sh:0 8px 28px rgba(0,0,0,.35)}}
+:root[data-theme="dark"]{--bg:#0c1022;--panel:#141a36;--ink:#e9ecff;--mute:#8b94b8;--line:#232b4f;--sel:#1b2347;--acc:#8d8dff;--acc2:#a99bff;--ok:#3ecf9a;--warn:#f0a35a;--bad:#ff7a7f;--sh:0 8px 28px rgba(0,0,0,.35)}
+body{font-family:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",sans-serif;background:radial-gradient(900px 420px at 85% -80px,color-mix(in srgb,var(--acc) 16%,transparent),transparent),var(--bg);background-attachment:fixed}
+main{padding-top:40px}
+h1{display:flex;align-items:center;gap:12px;font-size:24px;font-weight:700}
+.logo{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;font-size:20px;box-shadow:0 6px 16px color-mix(in srgb,var(--acc) 40%,transparent)}
+.live{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:99px;background:var(--panel);border:1px solid var(--line);box-shadow:var(--sh);font-size:13px;color:var(--mute)}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 22%,transparent)}
+.kpis{gap:16px;background:none;border:0;overflow:visible}
+.kpi{position:relative;border:1px solid var(--line);border-radius:18px;box-shadow:var(--sh);padding:18px 20px 18px 24px;overflow:hidden}
+.kpi::before{content:"";position:absolute;left:0;top:18px;bottom:18px;width:4px;border-radius:0 4px 4px 0;background:var(--acc)}
+.kpi:nth-child(2)::before{background:var(--ok)}.kpi:nth-child(3)::before{background:var(--warn)}.kpi:nth-child(4)::before{background:var(--bad)}
+.kpi b{font-size:32px;font-weight:700}
+.card{border-radius:18px;box-shadow:var(--sh);padding:22px}
+h2{font-size:15px;font-weight:700}
+input{border-radius:10px;padding:9px 14px;background:var(--bg)}
+input:focus{outline:2px solid var(--acc);border-color:transparent}
+button{border-radius:99px;padding:6px 14px;transition:background .15s,border-color .15s}
+button:hover{border-color:var(--acc);background:var(--sel)}
+button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+:focus-visible{outline-color:var(--acc)}
+th{font-size:12px;font-weight:600;padding:8px 12px}
+td{padding:13px 12px;border-bottom:1px solid var(--line)}
+tbody tr td:first-child{font-weight:700}
+tbody tr.sel{background:var(--sel);box-shadow:inset 3px 0 0 var(--acc)}
+.pill{display:inline-flex;align-items:center;padding:3px 11px 3px 9px;border-radius:99px;font-size:12px;font-weight:600;background:color-mix(in srgb,var(--mute) 14%,transparent);color:var(--mute)}
+.pill .dot{margin-right:6px;background:currentColor!important}
+.s-ontime .pill,.s-departed .pill{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+.s-boarding .pill{background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--acc)}
+.s-delayed .pill{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+.s-cancelled .pill{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad);text-decoration:none}
+.flag{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--bad);color:#fff;font-size:11px}
+.kpi b.flag{display:block;width:auto;height:auto;background:none;color:var(--bad);font-size:32px}
+#detail{position:sticky;top:20px}
+#detail h2{font-size:20px;margin-bottom:4px}
+dl{padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+dd{font-weight:600}
+.cf{border-left:0;background:color-mix(in srgb,var(--bad) 9%,transparent);border-radius:12px;padding:10px 14px;margin-bottom:10px}
+.row{height:36px}
+.bar{top:6px;height:24px;line-height:24px;border-radius:8px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;opacity:1;font-weight:600}
+.bar.arr{background:color-mix(in srgb,var(--acc) 12%,transparent);border:1px solid color-mix(in srgb,var(--acc) 45%,transparent);color:var(--acc)}
+.bar.bad{background:var(--bad);border-color:var(--bad);color:#fff}
+.bar.x{opacity:.35}
+.now{background:var(--warn)}
+.live b{color:var(--ink);font-variant-numeric:tabular-nums}.live button{padding:2px 11px;font-size:12px}
+.rp{display:flex;justify-content:space-between;padding:8px 12px;margin-top:6px;border-radius:10px;background:color-mix(in srgb,var(--warn) 12%,transparent)}.rp b{color:var(--warn)}
+.fx{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}.fx button{padding:3px 12px;border-color:var(--acc);color:var(--acc)}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:99px;opacity:0;pointer-events:none;transition:.25s;font-weight:600;z-index:9}#toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<main>
+<header><h1><span class="logo">✈</span>Flight operations</h1><span class="live"><i></i>Hub DEL · <b id="clk">10:05</b><button id="play">Play</button><button id="step">+15 min</button></span></header>
+<div class="kpis" id="kpis"></div>
+<div class="grid">
+  <div>
+    <div class="card">
+      <div class="tools"><input id="q" placeholder="Search flight, route or aircraft" aria-label="Search flights"><span id="chips" class="tools" style="margin:0"></span></div>
+      <div class="scroll"><table><thead><tr><th>Flight</th><th>Route</th><th>Departs</th><th>Arrives</th><th>Aircraft</th><th>Gate</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
+    </div>
+  </div>
+  <aside class="card" id="detail"></aside>
+</div>
+<section class="card wide"><h2>Gate occupancy</h2><div class="scroll"><div class="tl" id="tl"></div></div></section>
+<section class="card wide"><h2>Conflicts</h2><div id="cfs"></div></section>
+</main>
+<div id="toast"></div>
+<script>
+/* ==========================================================================
+   Flight operations dashboard
+   --------------------------------------------------------------------------
+   How it works:
+   1. `flights` holds every flight record (the single source of truth).
+   2. `findConflicts()` looks at gates and aircraft and reports clashes.
+   3. `render()` redraws the whole page from that data after every change.
+   ========================================================================== */
+
+// ---------- Settings ----------
+const HUB = 'DEL';
+const MIN_TURNAROUND = 40;   // minutes an aircraft needs on the ground between flights
+const GATE_BUFFER = 45;      // minutes a gate is held before a departure / after an arrival
+const DAY_START = 9 * 60;    // 09:00, left edge of the gate timeline
+const DAY_END = 19 * 60;     // 19:00, right edge of the gate timeline
+const GATE_POOL = ['A1', 'A2', 'A3', 'A4', 'A5', 'B1', 'B2', 'B3', 'C1', 'C2'];
+
+// ---------- State ----------
+let currentTime = 10 * 60 + 5;   // simulated clock, in minutes after midnight
+let selectedId = 'UK813';
+let statusFilter = 'All';
+let searchText = '';
+let clockTimer = null;
+
+// ---------- Time helpers ----------
+function toMinutes(clockString) {
+  const [hours, minutes] = clockString.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function toClock(totalMinutes) {
+  const hours = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+  const minutes = String(totalMinutes % 60).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+// ---------- Flight data ----------
+// Each row: flight, from, to, departs, arrives, aircraft, gate, delay (minutes)
+const flightRows = [
+  ['AI101',  'DEL', 'BOM', '09:55', '12:05', 'VT-ALA', 'A1', 0],
+  ['AI102',  'BOM', 'DEL', '12:50', '15:00', 'VT-ALA', 'B2', 0],
+  ['6E441',  'DEL', 'BLR', '10:00', '12:45', 'VT-IFC', 'A2', 0],
+  ['6E442',  'BLR', 'DEL', '13:30', '16:15', 'VT-IFC', 'A2', 0],
+  ['UK813',  'DEL', 'HYD', '10:15', '12:20', 'VT-TQA', 'A1', 20],
+  ['UK814',  'HYD', 'DEL', '13:00', '15:05', 'VT-TQA', 'B1', 0],
+  ['SG216',  'DEL', 'GOI', '10:30', '13:05', 'VT-SZD', 'A3', 0],
+  ['SG217',  'GOI', 'DEL', '13:45', '16:20', 'VT-SZD', 'A3', 0],
+  ['SG218',  'DEL', 'JAI', '13:50', '14:50', 'VT-SZD', 'A4', 0],
+  ['AI865',  'DEL', 'DXB', '11:00', '13:30', 'VT-ANM', 'C1', 0],
+  ['AI866',  'DXB', 'DEL', '14:15', '18:45', 'VT-ANM', 'C2', 0],
+  ['6E2023', 'DEL', 'CCU', '11:20', '13:40', 'VT-IJK', 'A2', 0],
+  ['6E2024', 'CCU', 'DEL', '14:30', '16:50', 'VT-IJK', 'B1', 0],
+  ['AI303',  'DEL', 'PNQ', '12:00', '13:50', 'VT-AXB', 'A5', 0],
+];
+
+const flights = flightRows.map(([id, from, to, departs, arrives, tail, gate, delay]) => ({
+  id,
+  from,
+  to,
+  scheduledDeparture: toMinutes(departs),
+  scheduledArrival: toMinutes(arrives),
+  tail,
+  gate,
+  delay,
+  cancelled: id === 'AI303',
+}));
+
+const findFlight = id => flights.find(flight => flight.id === id);
+const activeFlights = () => flights.filter(flight => !flight.cancelled);
+
+// ---------- Per-flight calculations ----------
+const expectedDeparture = flight => flight.scheduledDeparture + flight.delay;
+const expectedArrival = flight => flight.scheduledArrival + flight.delay;
+
+// The period a flight occupies its gate at the hub.
+// Departures hold the gate just before takeoff, arrivals just after landing.
+function gateWindow(flight) {
+  if (flight.from === HUB) {
+    const departure = expectedDeparture(flight);
+    return [departure - GATE_BUFFER, departure];
+  }
+  const arrival = expectedArrival(flight);
+  return [arrival, arrival + GATE_BUFFER];
+}
+
+function overlapMinutes([startA, endA], [startB, endB]) {
+  return Math.min(endA, endB) - Math.max(startA, startB);
+}
+
+function getStatus(flight) {
+  if (flight.cancelled) return 'Cancelled';
+  if (flight.delay >= 15) return 'Delayed';
+  if (expectedDeparture(flight) <= currentTime) return 'Departed';
+  if (expectedDeparture(flight) - currentTime <= 40) return 'Boarding';
+  return 'On time';
+}
+
+// ---------- Conflict detection ----------
+function findConflicts() {
+  const conflicts = [];
+  const live = activeFlights();
+
+  // 1. Gate conflicts: two flights holding the same gate at the same time.
+  for (let i = 0; i < live.length; i++) {
+    for (let j = i + 1; j < live.length; j++) {
+      const a = live[i];
+      const b = live[j];
+      if (a.gate !== b.gate) continue;
+
+      const overlap = overlapMinutes(gateWindow(a), gateWindow(b));
+      if (overlap > 0) {
+        conflicts.push({
+          type: 'Gate',
+          ids: [a.id, b.id],
+          message: `Gate ${a.gate}: ${a.id} and ${b.id} overlap by ${overlap} min`,
+        });
+      }
+    }
+  }
+
+  // 2. Aircraft conflicts: the same tail number with too little time between legs.
+  const tails = [...new Set(live.map(flight => flight.tail))];
+  for (const tail of tails) {
+    const legs = live
+      .filter(flight => flight.tail === tail)
+      .sort((a, b) => expectedDeparture(a) - expectedDeparture(b));
+
+    for (let i = 0; i < legs.length - 1; i++) {
+      const [previous, next] = [legs[i], legs[i + 1]];
+      const gap = expectedDeparture(next) - expectedArrival(previous);
+      if (gap >= MIN_TURNAROUND) continue;
+
+      const message = gap < 0
+        ? `${tail}: ${next.id} departs ${-gap} min before ${previous.id} lands`
+        : `${tail}: turnaround ${gap} min between ${previous.id} and ${next.id} (minimum ${MIN_TURNAROUND})`;
+      conflicts.push({ type: 'Aircraft', ids: [previous.id, next.id], message });
+    }
+  }
+
+  return conflicts;
+}
+
+// ---------- Suggestions ----------
+// If a flight is late, later legs of the same aircraft inherit part of that delay.
+// Slack in the schedule (time beyond the minimum turnaround) absorbs some of it.
+function calculateKnockOn(flight) {
+  if (flight.cancelled || !flight.delay) return [];
+
+  const legs = activeFlights()
+    .filter(other => other.tail === flight.tail)
+    .sort((a, b) => a.scheduledDeparture - b.scheduledDeparture);
+
+  const affected = [];
+  let carriedDelay = flight.delay;
+
+  for (let i = legs.indexOf(flight) + 1; i < legs.length; i++) {
+    const slack = legs[i].scheduledDeparture - legs[i - 1].scheduledArrival - MIN_TURNAROUND;
+    carriedDelay = Math.max(0, carriedDelay - slack);
+    if (carriedDelay === 0) break;
+    if (carriedDelay > legs[i].delay) affected.push({ flight: legs[i], delay: carriedDelay });
+  }
+  return affected;
+}
+
+// Gates with no overlapping flight during this flight's gate window.
+function findFreeGates(flight) {
+  const window = gateWindow(flight);
+  return GATE_POOL.filter(gate => {
+    if (gate === flight.gate) return false;
+    const isBusy = activeFlights().some(other =>
+      other !== flight && other.gate === gate && overlapMinutes(gateWindow(other), window) > 0
+    );
+    return !isBusy;
+  });
+}
+
+// ---------- Rendering ----------
+const $ = id => document.getElementById(id);
+
+function renderSummary(conflicts) {
+  const live = activeFlights();
+  const delayedCount = live.filter(flight => flight.delay >= 15).length;
+  const onTimePercent = Math.round(100 * (live.length - delayedCount) / live.length);
+
+  const cards = [
+    { value: flights.length, label: 'Flights today' },
+    { value: `${onTimePercent}%`, label: 'On time' },
+    { value: delayedCount, label: 'Delayed' },
+    { value: conflicts.length, label: 'Conflicts', alert: conflicts.length > 0 },
+  ];
+
+  $('kpis').innerHTML = cards.map(card => `
+    <div class="kpi">
+      <b ${card.alert ? 'class="flag"' : ''}>${card.value}</b>
+      <span class="mute">${card.label}</span>
+    </div>`).join('');
+}
+
+function renderFilters() {
+  const options = ['All', 'On time', 'Delayed', 'Cancelled', 'Conflicts'];
+  $('chips').innerHTML = options.map(option => `
+    <button class="${option === statusFilter ? 'on' : ''}" data-filter="${option}">${option}</button>`).join('');
+}
+
+function getVisibleFlights(flightsWithConflicts) {
+  return flights
+    .filter(flight => {
+      const status = getStatus(flight);
+      if (statusFilter === 'Conflicts') return flightsWithConflicts.has(flight.id);
+      if (statusFilter !== 'All') return status === statusFilter;
+      return true;
+    })
+    .filter(flight => `${flight.id}${flight.from}${flight.to}${flight.tail}`.toLowerCase().includes(searchText))
+    .sort((a, b) => expectedDeparture(a) - expectedDeparture(b));
+}
+
+function renderTable(flightsWithConflicts) {
+  const visible = getVisibleFlights(flightsWithConflicts);
+
+  if (visible.length === 0) {
+    $('rows').innerHTML = '<tr><td colspan="7" class="mute">No flights match. Clear the search or choose another filter.</td></tr>';
+    return;
+  }
+
+  $('rows').innerHTML = visible.map(flight => {
+    const status = getStatus(flight);
+    const statusClass = 's-' + status.toLowerCase().replace(' ', '');
+    const isSelected = flight.id === selectedId ? 'sel' : '';
+    const warning = flightsWithConflicts.has(flight.id) ? ' <span class="flag" title="Conflict">!</span>' : '';
+    const delayNote = flight.delay ? ` <span class="mute">+${flight.delay}</span>` : '';
+
+    return `
+      <tr class="${statusClass} ${isSelected}" data-id="${flight.id}" tabindex="0">
+        <td>${flight.id}${warning}</td>
+        <td>${flight.from} – ${flight.to}</td>
+        <td>${toClock(expectedDeparture(flight))}${delayNote}</td>
+        <td>${toClock(expectedArrival(flight))}</td>
+        <td>${flight.tail}</td>
+        <td>${flight.gate}</td>
+        <td><span class="pill"><span class="dot"></span>${status}</span></td>
+      </tr>`;
+  }).join('');
+}
+
+function renderDetail(conflicts) {
+  const flight = findFlight(selectedId);
+  const flightConflicts = conflicts.filter(conflict => conflict.ids.includes(flight.id));
+  const [gateFrom, gateTo] = gateWindow(flight);
+  const knockOn = calculateKnockOn(flight);
+
+  const knockOnHtml = knockOn.length ? `
+    <h2 style="margin-top:20px">Knock-on delay</h2>
+    ${knockOn.map(item => `
+      <div class="rp"><span>${item.flight.id} ${item.flight.from} – ${item.flight.to}</span><b>+${item.delay} min</b></div>`).join('')}
+    <button data-delay="ripple" style="margin-top:10px">Apply to ${knockOn.length} flight${knockOn.length > 1 ? 's' : ''}</button>` : '';
+
+  const conflictsHtml = flightConflicts.length
+    ? flightConflicts.map(conflict => `<div class="cf">${conflict.message}</div>`).join('')
+    : '<span class="ok">No conflicts for this flight.</span>';
+
+  $('detail').innerHTML = `
+    <h2>${flight.id} · ${flight.from} – ${flight.to}</h2>
+    <dl>
+      <dt>Status</dt><dd>${getStatus(flight)}</dd>
+      <dt>Scheduled</dt><dd>${toClock(flight.scheduledDeparture)} – ${toClock(flight.scheduledArrival)}</dd>
+      <dt>Expected</dt><dd>${toClock(expectedDeparture(flight))} – ${toClock(expectedArrival(flight))}</dd>
+      <dt>Delay</dt><dd>${flight.delay} min</dd>
+      <dt>Aircraft</dt><dd>${flight.tail}</dd>
+      <dt>Gate</dt><dd>${flight.gate} (${toClock(gateFrom)}–${toClock(gateTo)})</dd>
+    </dl>
+    <div class="acts">
+      <button data-delay="15">+15 min</button>
+      <button data-delay="30">+30 min</button>
+      <button data-delay="-15">−15 min</button>
+      <button data-delay="reset">Reset</button>
+      <button data-delay="cancel">${flight.cancelled ? 'Reinstate' : 'Cancel'}</button>
+    </div>
+    ${knockOnHtml}
+    <h2 style="margin-top:20px">Conflicts</h2>
+    ${conflictsHtml}`;
+}
+
+function renderConflictList(conflicts) {
+  if (conflicts.length === 0) {
+    $('cfs').innerHTML = '<span class="ok">All clear. No gate or aircraft conflicts.</span>';
+    return;
+  }
+
+  $('cfs').innerHTML = conflicts.map(conflict => `
+    <div class="cf">
+      <span class="mute">${conflict.type}</span> · ${conflict.message}
+      <button data-id="${conflict.ids[0]}" style="margin-left:8px">View</button>
+      ${conflict.type === 'Gate' ? gateSuggestionHtml(conflict) : ''}
+    </div>`).join('');
+}
+
+// For a gate clash, offer to move the later flight to a free gate.
+function gateSuggestionHtml(conflict) {
+  const flight = findFlight(conflict.ids[1]);
+  const freeGates = findFreeGates(flight).slice(0, 3);
+  const buttons = freeGates.length
+    ? freeGates.map(gate => `<button data-move="${flight.id}:${gate}">${gate}</button>`).join('')
+    : ' <span class="mute">no free gate</span>';
+
+  return `<div class="fx"><span class="mute">Suggested: move ${flight.id} to</span>${buttons}</div>`;
+}
+
+function renderTimeline(flightsWithConflicts) {
+  const toPercent = minutes => (minutes - DAY_START) / (DAY_END - DAY_START) * 100;
+  const gates = [...new Set(flights.map(flight => flight.gate))].sort();
+
+  let axisLabels = '';
+  for (let minute = DAY_START; minute <= DAY_END; minute += 120) {
+    axisLabels += `<span style="left:${toPercent(minute)}%">${toClock(minute)}</span>`;
+  }
+
+  const rows = gates.map(gate => {
+    const bars = flights.filter(flight => flight.gate === gate).map(flight => {
+      const [start, end] = gateWindow(flight);
+      const classes = [
+        'bar',
+        flight.from === HUB ? '' : 'arr',
+        flightsWithConflicts.has(flight.id) ? 'bad' : '',
+        flight.cancelled ? 'x' : '',
+      ].join(' ');
+
+      return `<div class="${classes}" data-id="${flight.id}"
+        style="left:${toPercent(start)}%;width:${toPercent(end) - toPercent(start)}%"
+        title="${flight.id} ${toClock(start)}–${toClock(end)}">${flight.id}</div>`;
+    }).join('');
+
+    return `
+      <div class="row">
+        <span class="mute">${gate}</span>
+        <div class="lane"><i class="now" style="left:${toPercent(currentTime)}%"></i>${bars}</div>
+      </div>`;
+  }).join('');
+
+  $('tl').innerHTML = `
+    <div class="axis"><div></div><div>${axisLabels}</div></div>
+    ${rows}
+    <p class="mute" style="margin:12px 0 0;font-size:12px">Filled bars are departures, outlined bars are arrivals, the amber line is now. Red marks a conflict.</p>`;
+}
+
+function render() {
+  const conflicts = findConflicts();
+  const flightsWithConflicts = new Set(conflicts.flatMap(conflict => conflict.ids));
+
+  $('clk').textContent = toClock(currentTime);
+  renderSummary(conflicts);
+  renderFilters();
+  renderTable(flightsWithConflicts);
+  renderDetail(conflicts);
+  renderConflictList(conflicts);
+  renderTimeline(flightsWithConflicts);
+}
+
+// ---------- Small helpers ----------
+let toastTimer = null;
+function showToast(message) {
+  const toast = $('toast');
+  toast.textContent = message;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+function applyDelayAction(flight, action) {
+  if (action === 'ripple') {
+    calculateKnockOn(flight).forEach(item => { item.flight.delay = item.delay; });
+    showToast('Knock-on delay applied');
+  } else if (action === 'cancel') {
+    flight.cancelled = !flight.cancelled;
+  } else if (action === 'reset') {
+    flight.delay = 0;
+  } else {
+    flight.delay = Math.max(0, flight.delay + Number(action));   // "+15", "-15", "30"
+  }
+}
+
+// ---------- Events ----------
+// One click listener handles everything; data-* attributes say what was clicked.
+document.addEventListener('click', event => {
+  const button = event.target.closest('button');
+  const flightElement = event.target.closest('[data-id]');
+
+  if (button && button.dataset.filter) {
+    statusFilter = button.dataset.filter;
+  } else if (button && button.dataset.delay !== undefined) {
+    applyDelayAction(findFlight(selectedId), button.dataset.delay);
+  } else if (button && button.dataset.move) {
+    const [flightId, gate] = button.dataset.move.split(':');
+    findFlight(flightId).gate = gate;
+    showToast(`${flightId} moved to gate ${gate}`);
+  } else if (flightElement) {
+    selectedId = flightElement.dataset.id;
+  }
+  render();
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && event.target.dataset.id) {
+    selectedId = event.target.dataset.id;
+    render();
+  }
+});
+
+$('q').addEventListener('input', event => {
+  searchText = event.target.value.toLowerCase();
+  render();
+});
+
+// Simulated clock: Play advances 5 minutes per second, +15 min jumps ahead.
+$('play').onclick = () => {
+  if (clockTimer) {
+    clearInterval(clockTimer);
+    clockTimer = null;
+    $('play').textContent = 'Play';
+    return;
+  }
+  $('play').textContent = 'Pause';
+  clockTimer = setInterval(() => {
+    currentTime = Math.min(DAY_END, currentTime + 5);
+    render();
+    if (currentTime >= DAY_END) $('play').click();   // stop at the end of the day
+  }, 800);
+};
+
+$('step').onclick = () => {
+  currentTime = Math.min(DAY_END, currentTime + 15);
+  render();
+};
+
+render();
+</script>
+</body>
+</html>
